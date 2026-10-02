@@ -1,0 +1,17 @@
+# The defaults will be used if not overriden by command-line arguments or the
+# specified profile for the child..
+defaults:
+  mqtt_user: user
+  mqtt_password: password123
+  mqtt_ip: 192.168.1.123
+  mqtt_port: 1883
+
+max:
+  user: 11223344
+  password: 12345
+  topic: sms-freiburg/max
+
+moritz:
+  user: 12345678
+  password: 54321
+  topic: sms-freiburg/moritz

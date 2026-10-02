@@ -1,0 +1,4 @@
+paho-mqtt==2.1.0
+PyYAML==6.0.3
+selene==2.0.0rc10
+selenium==4.50.0
