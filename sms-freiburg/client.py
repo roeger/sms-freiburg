@@ -12,6 +12,10 @@ URL = "https://sms-freiburg.de"
 logger = logging.getLogger(__name__)
 
 
+class LoginError(Exception):
+    """Raised when the login to the portal fails."""
+
+
 class SMSFreiburgClient:
     def __init__(self, username: str, password: str) -> None:
         self.username = username
@@ -31,6 +35,23 @@ class SMSFreiburgClient:
         browser.element("#ID_USERNAME").should(be.visible).type(username)
         browser.element("#ID_PASSWORD").should(be.visible).type(password)
         browser.element("#ID_LOGIN").should(be.visible).click()
+
+        speiseplan_link = browser.element('a[title="Speiseplan"]')
+        error_box = browser.element(".Login_InfoBox.InfoBox_Error")
+
+        # Wait until the login either succeeded or produced an error.
+        def login_finished(_):
+            return (speiseplan_link.matching(be.visible)
+                    or error_box.matching(be.visible))
+
+        browser.element("body").should(login_finished)
+
+        if error_box.matching(be.visible):
+            message = browser.element("#LoginErrorMsg").locate().text
+            logger.error("Login failed for %s: %s", username,
+                         " ".join(message.split()))
+            raise LoginError(f"Login failed for user {username}")
+        logger.debug("Login successful")
 
     def _extract_meal_plan(self) -> dict[str, list]:
         result = {}
@@ -150,7 +171,7 @@ class SMSFreiburgClient:
         browser.open(URL)
 
         self._login(self.username, self.password)
-        browser.element('a[title="Speiseplan"]').should(be.visible).click()
+        browser.element('a[title="Speiseplan"]').click()
         browser.element("table.Table_Standard").should(be.present)
 
         all_meals = {}

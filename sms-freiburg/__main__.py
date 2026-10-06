@@ -2,13 +2,14 @@ import argparse
 import json
 import logging
 import paho.mqtt.client as mqtt
+import sys
 import yaml
 from dataclasses import dataclass, fields
 from datetime import datetime
 from pathlib import Path
 
 
-from .client import SMSFreiburgClient
+from .client import SMSFreiburgClient, LoginError
 
 @dataclass
 class Config:
@@ -91,7 +92,10 @@ def main():
     logger.debug(f"Using {config}")
 
     c = SMSFreiburgClient(config.user, config.password)
-    all_meals = c.get_data()
+    try:
+        all_meals = c.get_data()
+    except LoginError:
+        sys.exit(1)
 
     result = {
         "updated": datetime.now().astimezone().isoformat(),
