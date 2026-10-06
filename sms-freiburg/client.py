@@ -1,3 +1,4 @@
+import logging
 import re
 import time
 
@@ -7,6 +8,8 @@ from selenium.common.exceptions import (NoSuchElementException,
                                         StaleElementReferenceException)
 
 URL = "https://sms-freiburg.de"
+
+logger = logging.getLogger(__name__)
 
 
 class SMSFreiburgClient:
@@ -24,6 +27,7 @@ class SMSFreiburgClient:
         return " ".join(text.split())
 
     def _login(self, username: str, password: str):
+        logger.debug(f"Logging in as {username}")
         browser.element("#ID_USERNAME").should(be.visible).type(username)
         browser.element("#ID_PASSWORD").should(be.visible).type(password)
         browser.element("#ID_LOGIN").should(be.visible).click()
@@ -37,6 +41,7 @@ class SMSFreiburgClient:
         # Get the two rows of the outer table.
         rows = table.locate().find_elements("xpath", "./tbody/tr")
         if len(rows) < 2:
+            logger.debug("No meal rows found, skipping week")
             return result # no meals in this week (can happen during vacations)
 
         header_cells = rows[0].find_elements("xpath", "./td")
@@ -50,6 +55,7 @@ class SMSFreiburgClient:
             # Extract date from header text
             match = re.search(r"\b(\d{2}\.\d{2}\.\d{2})\b", header_text)
             if not match:
+                logger.debug("No date in header cell: %r", header_text)
                 continue
             date = match.group(1)
 
@@ -59,6 +65,7 @@ class SMSFreiburgClient:
             )
 
             if not nested_rows:
+                logger.debug("No meal entry for %s", date)
                 continue
 
             # First row of nested table contains the food description.
@@ -73,7 +80,12 @@ class SMSFreiburgClient:
                 match = re.search(r"Bestellt:\s*(\d+)", ordered_text)
                 if match:
                     ordered = int(match.group(1))
+                else:
+                    logger.warning("Could not parse order count for %s: %r",
+                                   date, ordered_text)
             result[date] = [ordered, description]
+            logger.debug("Parsed %s: ordered=%d, description=%r",
+                         date, ordered, description)
         return result
 
     def _get_displayed_dates(self):
@@ -89,7 +101,9 @@ class SMSFreiburgClient:
             'a:has(img[alt="Eine Woche vor"])'
         )
         if len(next_button) == 0:
+            logger.info("No 'next week' button; reached the last week")
             return False
+        logger.debug("Navigating to next week")
         next_button.first.click()
 
         def new_week_is_ready(_):
@@ -119,12 +133,15 @@ class SMSFreiburgClient:
 
             except (StaleElementReferenceException, NoSuchElementException):
                 if attempt == max_attempts - 1:
+                    logger.error("Meal plan extraction failed after %d "
+                                 "attempts", max_attempts)
                     raise
 
             time.sleep(0.1)
         raise RuntimeError("Could not extract meal plan")
 
     def get_data(self):
+        logger.debug("Starting meal plan scrape from %s", URL)
         options = webdriver.ChromeOptions()
         options.add_argument("--headless=new")
         browser.config.driver_options = options
@@ -143,4 +160,5 @@ class SMSFreiburgClient:
             if not self._go_to_next_week():
                 break
 
+        logger.info("Scrape finished.")
         return all_meals
